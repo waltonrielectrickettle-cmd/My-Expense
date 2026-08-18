@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Family Money</title>
+<!-- Firebase Library -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,"Noto Sans Bengali",sans-serif;background:#f4f6f8;color:#17202a}
+header{background:#17324d;color:#fff;padding:18px 20px;position:sticky;top:0;z-index:5}
+header h1{margin:0 0 10px;font-size:22px}.bar{display:flex;gap:8px;flex-wrap:wrap}
+select,input,button{padding:10px;border:1px solid #ccd3da;border-radius:8px;background:#fff;font-size:14px}
+button{cursor:pointer;background:#17324d;color:#fff;border:0}.danger{background:#b42318}.green{background:#16834b}
+main{max-width:1100px;margin:auto;padding:18px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 8px #00000010}.card small{color:#667085}.money{font-size:21px;font-weight:700;margin-top:5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:15px;margin-top:15px}
+section{background:#fff;border-radius:12px;padding:16px;box-shadow:0 2px 8px #00000010}h2{font-size:17px;margin:0 0 12px}
+form{display:grid;gap:9px}label{font-size:13px;font-weight:600}.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+.alert{padding:10px;border-radius:8px;margin:7px 0;background:#fff4e5}.ok{background:#eaf8ef}.bad{background:#fdecec}
+.tabs{display:flex;gap:8px;overflow:auto;margin:15px 0}.tabs button{white-space:nowrap;background:#fff;color:#17324d;border:1px solid #ccd3da}.tabs button.active{background:#17324d;color:#fff}
+.note{color:#667085;font-size:13px}.hidden{display:none}.setting-group{margin:14px 0;padding:12px;border:1px solid #e4e7ec;border-radius:10px}.profile-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid #ccd3da;background:#eef2f6}.toast{position:fixed;right:18px;bottom:18px;max-width:360px;padding:14px;border-radius:12px;background:#17324d;color:#fff;box-shadow:0 6px 20px #0003;z-index:99}.login-overlay{position:fixed;inset:0;background:#17324de8;display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}.login-box{background:#fff;color:#17202a;width:min(380px,100%);padding:22px;border-radius:16px;box-shadow:0 8px 30px #0005}.login-box h2{margin-bottom:10px}.login-box form{display:grid;gap:10px}@media(max-width:600px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- Login Modal -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-box">
+    <h2>🔐 Login Required</h2>
+    <p class="note">আপনার সেট করা পাসওয়ার্ড দিয়ে লগইন করুন।</p>
+    <form id="loginForm">
+      <input type="password" id="loginPass" placeholder="পাসওয়ার্ড দিন" required>
+      <button type="submit" class="green">Login</button>
+    </form>
+  </div>
+</div>
+
+<header>
+<h1>💰 My Family Money</h1>
+<div class="bar">
+<select id="year"></select><select id="month"></select>
+<button onclick="setNow()">এই মাস</button>
+<button id="reportBtn" onclick="showReport()">বার্ষিক রিপোর্ট</button><button class="green" id="exportBtn" onclick="exportCSV()">📥 Excel/CSV</button>
+<button onclick="toggleSettings()">⚙️ Settings</button>
+</div>
+</header>
+<div id="toast" class="toast hidden"></div>
+<main>
+<section id="settings" class="hidden" style="margin-bottom:15px">
+<h2 id="settingsTitle">⚙️ Settings</h2>
+<label id="languageLabel">Language
+<select id="languageSelect" onchange="changeLanguage(this.value)">
+<option value="bn">বাংলা</option>
+<option value="en">English</option>
+</select></label>
+<p class="note" id="languageNote">Language পরিবর্তন করলে আপনার হিসাবের data নষ্ট হবে না।</p>
+
+<!-- Change Password Section -->
+<div class="setting-group">
+<h3>🔑 Change Password</h3>
+<input type="password" id="newPassInput" placeholder="নতুন পাসওয়ার্ড লিখুন">
+<button onclick="updatePassword()" style="margin-top:8px">পাসওয়ার্ড আপডেট করুন</button>
+</div>
+
+<div class="setting-group">
+<h3 id="profileTitle">👤 Profile Picture</h3>
+<div class="profile-row"><img id="profilePreview" class="avatar" alt="Profile"><div><input type="file" id="profilePic" accept="image/*"><button type="button" onclick="removeProfilePic()" id="removePicBtn">Remove Picture</button></div></div>
+</div>
+<div class="setting-group">
+<h3 id="notificationTitle">🔔 Notifications</h3>
+<label><input type="checkbox" id="soundToggle"> <span id="soundLabel">Notification Sound</span></label><br><br>
+<label><input type="checkbox" id="displayToggle"> <span id="displayLabel">Show on Display</span></label>
+<p class="note" id="notificationNote">খরচ বেশি হলে warning notification দেখাবে।</p>
+</div>
+</section>
+<div class="cards" id="summary"></div>
+<div class="tabs" id="tabs"></div>
+
+<div class="grid">
+<section>
+<h2 id="incomeTitle">➕ আয় যোগ করুন</h2>
+<form id="incomeForm">
+<label>তারিখ<input type="date" id="inDate" required></label>
+<div class="row">
+<label id="incomeCatLabel">Income Category
+<select id="incomeCategory">
+<option value="basic_salary">মূল Basic বেতন</option>
+<option value="overtime">Overtime টাকা</option>
+<option value="extra_income">Extra Income</option>
+<option value="other_income">অন্যান্য আয়</option>
+</select></label>
+<label id="incomeSourceLabel">Extra Income Source
+<input id="incomeSource" placeholder="যেমন: Service, Product Sale, Gift, Item Sale" disabled></label>
+</div>
+<label id="incomeNoteLabel">বিবরণ<input id="inNote" placeholder="যেমন: Salary" required></label>
+<label id="incomeAmountLabel">পরিমাণ (৳)<input type="number" id="inAmount" min="0" step="0.01" required></label>
+<button class="green">আয় Save</button>
+</form>
+</section>
+
+<section>
+<h2>➖ খরচ যোগ করুন</h2>
+<form id="expenseForm">
+<label>তারিখ<input type="date" id="exDate" required></label>
+<div class="row">
+<label>কার খরচ
+<select id="person"><option>নিজের</option><option>স্ত্রী</option><option>সন্তান</option><option>পরিবার</option></select></label>
+<label>Category
+<select id="category">
+<option>বাজার/খাবার</option><option>বাসা ভাড়া</option><option>Current Bill</option>
+<option>গ্যাস/পানি</option><option>যাতায়াত</option><option>শিক্ষা</option><option>চিকিৎসা</option><option>শপিং</option><option>অন্যান্য</option>
+</select></label>
+</div>
+<label>বিবরণ<input id="exNote" placeholder="যেমন: মাসের বাজার" required></label>
+<label>পরিমাণ (৳)<input type="number" id="exAmount" min="0" step="0.01" required></label>
+<button class="danger">খরচ Save</button>
+</form>
+</section>
+</div>
+
+<section style="margin-top:15px">
+<h2>🎯 Budget সেট করুন</h2>
+<div class="row">
+<select id="budgetCat"></select><input type="number" id="budgetAmount" min="0" placeholder="মাসিক বাজেট ৳">
+</div>
+<button onclick="saveBudget()" style="margin-top:8px">Budget Save</button>
+<div id="budgetList"></div>
+</section>
+
+<section style="margin-top:15px">
+<h2>🔎 Search / Filter</h2>
+<div class="row">
+<input id="search" placeholder="বিবরণ খুঁজুন...">
+<select id="filterPerson"><option value="">সবাই</option><option>নিজের</option><option>স্ত্রী</option><option>সন্তান</option><option>পরিবার</option></select>
+</div>
+<div class="row" style="margin-top:8px">
+<select id="filterCategory"><option value="">সব Category</option></select>
+<select id="typeFilter"><option value="">আয় + খরচ</option><option>income</option><option>expense</option></select>
+</div>
+</section>
+
+<section style="margin-top:15px">
+<h2>🚨 Spending Notice</h2><div id="notices"></div>
+</section>
+
+<section style="margin-top:15px">
+<h2>📋 এই মাসের লেনদেন</h2>
+<div style="overflow:auto"><table><thead><tr><th>তারিখ</th><th>ধরন</th><th>কার</th><th>Category</th><th>বিবরণ</th><th>৳</th><th></th></tr></thead><tbody id="txns"></tbody></table></div>
+</section>
+
+<section id="report" class="hidden" style="margin-top:15px">
+<h2>📊 Annual Report</h2><div id="annual"></div>
+</section>
+</main>
+
+<script>
+// Firebase Credentials Setup
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "YOUR_APP_ID"
+};
+
+// Initialize Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
+
+const cats=["বাজার/খাবার","বাসা ভাড়া","Current Bill","গ্যাস/পানি","যাতায়াত","শিক্ষা","চিকিৎসা","শপিং","অন্যান্য"];
+let data = { transactions: [], budgets: {}, password: "1234" };
+
+// Sync from Firebase Database
+db.ref("moneyApp").on("value", snapshot => {
+  const dbData = snapshot.val();
+  if (dbData) {
+    data = dbData;
+    if(!data.transactions) data.transactions = [];
+    if(!data.budgets) data.budgets = {};
+  }
+  render();
+});
+
+function save(){
+  db.ref("moneyApp").set(data);
+}
+
+// Password Login Verification
+document.getElementById("loginForm").onsubmit = e => {
+  e.preventDefault();
+  const inputPass = document.getElementById("loginPass").value;
+  const activePass = data.password || "1234";
+  if(inputPass === activePass) {
+    document.getElementById("loginOverlay").classList.add("hidden");
+  } else {
+    alert("ভুল পাসওয়ার্ড! আবার চেষ্টা করুন।");
+  }
+};
+
+function updatePassword(){
+  const newP = document.getElementById("newPassInput").value.trim();
+  if(newP){
+    data.password = newP;
+    save();
+    alert("পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!");
+    document.getElementById("newPassInput").value = "";
+  } else {
+    alert("অনুগ্রহ করে একটি পাসওয়ার্ড টাইপ করুন।");
+  }
+}
+
+const months=["জানুয়ারি","ফেব্রুয়ারি","মার্চ","এপ্রিল","মে","জুন","জুলাই","আগস্ট","সেপ্টেম্বর","অক্টোবর","নভেম্বর","ডিসেম্বর"];
+const ySel=document.getElementById("year"),mSel=document.getElementById("month");
+for(let y=2020;y<=2100;y++)ySel.add(new Option(y,y));
+for(let i=0;i<12;i++)mSel.add(new Option(months[i],i));
+const now=new Date(); ySel.value=now.getFullYear();mSel.value=now.getMonth();
+document.getElementById("inDate").valueAsDate=now;document.getElementById("exDate").valueAsDate=now;
+const budgetCat=document.getElementById("budgetCat"), filterCategory=document.getElementById("filterCategory");
+cats.forEach(c=>{budgetCat.add(new Option(c,c));filterCategory.add(new Option(c,c));});
+
+function setNow(){ySel.value=now.getFullYear();mSel.value=now.getMonth();render()}
+function currentYM(){return [+ySel.value,+mSel.value]}
+function txMonth(t){let d=new Date(t.date+"T00:00:00");return[d.getFullYear(),d.getMonth()]}
+
+document.getElementById("incomeForm").onsubmit=e=>{e.preventDefault();
+let ic=incomeCategory.value, source=incomeSource.value.trim();
+data.transactions.push({id:Date.now(),type:"income",date:inDate.value,note:inNote.value,amount:+inAmount.value,person:"পরিবার",category:incomeCategory.options[incomeCategory.selectedIndex].textContent,incomeCategory:ic,incomeSource:source});
+save();e.target.reset();incomeCategory.value="basic_salary";incomeSource.value="";incomeSource.disabled=true;inDate.valueAsDate=new Date();render()};
+
+document.getElementById("expenseForm").onsubmit=e=>{e.preventDefault();data.transactions.push({id:Date.now(),type:"expense",date:exDate.value,note:exNote.value,amount:+exAmount.value,person:person.value,category:category.value});save();e.target.reset();exDate.valueAsDate=new Date();render()};
+[ySel,mSel,document.getElementById("search"),document.getElementById("filterPerson"),document.getElementById("filterCategory"),document.getElementById("typeFilter")].forEach(x=>x.oninput=render);
+
+function money(n){return "৳"+Math.round(n).toLocaleString("en-US")}
+function monthTx(){let [y,m]=currentYM();return (data.transactions||[]).filter(t=>{let [a,b]=txMonth(t);return a===y&&b===m})}
+
+function render(){
+ let ts=monthTx(), income=ts.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0), exp=ts.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+ let byPerson={};["নিজের","স্ত্রী","সন্তান","পরিবার"].forEach(p=>byPerson[p]=ts.filter(t=>t.type==="expense"&&t.person===p).reduce((s,t)=>s+t.amount,0));
+ let byCat={};cats.forEach(c=>byCat[c]=ts.filter(t=>t.type==="expense"&&t.category===c).reduce((s,t)=>s+t.amount,0));
+ summary.innerHTML=[["💰 Total Income",income],["💸 Total Expense",exp],["🏦 Remaining",income-exp],...Object.entries(byPerson).map(x=>["👤 "+x[0],x[1]]),...Object.entries(byCat).map(x=>["• "+x[0],x[1]])].map(x=>`<div class="card"><small>${x[0]}</small><div class="money">${money(x[1])}</div></div>`).join("");
+ let q=search.value.toLowerCase(),fp=filterPerson.value,fc=filterCategory.value,ft=typeFilter.value;
+ let rows=ts.filter(t=>(!q||t.note.toLowerCase().includes(q))&&(!fp||t.person===fp)&&(!fc||t.category===fc)&&(!ft||t.type===ft)).sort((a,b)=>b.date.localeCompare(a.date));
+ txns.innerHTML=rows.map(t=>`<tr><td>${t.date}</td><td>${t.type==="income"?"আয়":"খরচ"}</td><td>${t.person}</td><td>${t.category}</td><td>${t.note}</td><td>${money(t.amount)}</td><td><button class="danger" onclick="del(${t.id})">X</button></td></tr>`).join("")||'<tr><td colspan="7">কোনো data নেই</td></tr>';
+ renderBudgets(byCat);renderNotices(byCat,exp);renderTabs();
+}
+
+function del(id){data.transactions=data.transactions.filter(t=>t.id!==id);save();render()}
+function saveBudget(){let [y,m]=currentYM(),key=`${y}-${m}`;data.budgets[key]??={};data.budgets[key][budgetCat.value]=+budgetAmount.value;save();budgetAmount.value="";render()}
+function renderBudgets(byCat){let [y,m]=currentYM(),b=data.budgets[`${y}-${m}`]||{};budgetList.innerHTML=Object.keys(b).length?Object.entries(b).map(([c,v])=>`<div class="card" style="margin-top:7px">${c}: <b>${money(v)}</b> &nbsp; Used: ${money(byCat[c]||0)} &nbsp; ${byCat[c]>v?"🔴 Over":"🟢 OK"}</div>`).join(""):"<p class='note'>এই মাসে কোনো budget set করা হয়নি।</p>"}
+function renderNotices(byCat,exp){let arr=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);let out=[];if(arr[0]&&arr[0][1])out.push(`<div class="alert bad">⚠️ সবচেয়ে বেশি খরচ: <b>${arr[0][0]}</b> — ${money(arr[0][1])}</div>`);let [y,m]=currentYM(),b=data.budgets[`${y}-${m}`]||{};Object.entries(b).forEach(([c,v])=>{let u=byCat[c]||0;if(u>v)out.push(`<div class="alert bad">🔴 ${c}: Budget ${money(v)}, খরচ ${money(u)} — বাজেট ছাড়িয়েছে ${money(u-v)}</div>`);else if(u>=v*.8)out.push(`<div class="alert">🟠 ${c}: budget-এর ${Math.round(u/v*100)}% ব্যবহার হয়েছে।</div>`)});notices.innerHTML=out.join("")||'<div class="alert ok">🟢 এই মাসে বড় কোনো warning নেই।</div>'}
+function renderTabs(){tabs.innerHTML=`<button class="active">${months[+mSel.value]} ${ySel.value}</button>`}
+function showReport(){report.classList.toggle("hidden");let y=+ySel.value, rows=[];for(let m=0;m<12;m++){let ts=(data.transactions||[]).filter(t=>{let[a,b]=txMonth(t);return a===y&&b===m});let i=ts.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0),e=ts.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);rows.push([months[m],i,e,i-e])}annual.innerHTML='<table><tr><th>মাস</th><th>Income</th><th>Expense</th><th>Saving</th></tr>'+rows.map(r=>`<tr><td>${r[0]}</td><td>${money(r[1])}</td><td>${money(r[2])}</td><td>${money(r[3])}</td></tr>`).join("")+'</table>'}
+
+function exportCSV(){
+  let [y,m]=currentYM(), ts=monthTx();
+  let rows=[["My Family Money",`${months[m]} ${y}`],[],
+    ["Date","Type","Person","Category","Description","Amount"]];
+  ts.sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>rows.push([t.date,t.type==="income"?"Income":"Expense",t.person,t.category,t.note,t.amount]));
+  let income=ts.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
+  let expense=ts.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+  rows.push([],["Monthly Summary"],["Total Income",income],["Total Expense",expense],["Remaining/Savings",income-expense],[]);
+  rows.push(["Category","Total"]);
+  cats.forEach(c=>rows.push([c,ts.filter(t=>t.type==="expense"&&t.category===c).reduce((s,t)=>s+t.amount,0)]));
+  rows.push([],["Person","Total"]);
+  ["নিজের","স্ত্রী","সন্তান","পরিবার"].forEach(p=>rows.push([p,ts.filter(t=>t.type==="expense"&&t.person===p).reduce((s,t)=>s+t.amount,0)]));
+  const csv="\ufeff"+rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=`Money_${y}_${String(m+1).padStart(2,"0")}.csv`;a.click();URL.revokeObjectURL(a.href);
+}
+
+const translations={
+bn:{title:"💰 My Family Money",thisMonth:"এই মাস",annual:"বার্ষিক রিপোর্ট",export:"📥 Excel/CSV",settings:"⚙️ Settings",income:"➕ আয় যোগ করুন",incomeCat:"Income Category",incomeSource:"Extra Income Source",incomeNote:"বিবরণ",incomeAmount:"পরিমাণ (৳)",sourcePH:"যেমন: Service, Product Sale, Gift, Item Sale",notePH:"যেমন: Salary",sourceNote:"Language পরিবর্তন করলে আপনার হিসাবের data নষ্ট হবে না।",date:"তারিখ",profile:"👤 Profile Picture",removePic:"Remove Picture",notifications:"🔔 Notifications",sound:"Notification Sound",display:"Show on Display",notificationNote:"খরচ বেশি হলে warning notification দেখাবে।",incomeTypes:{basic_salary:"মূল Basic বেতন",overtime:"Overtime টাকা",extra_income:"Extra Income",other_income:"অন্যান্য আয়"}},
+en:{title:"💰 My Family Money",thisMonth:"This Month",annual:"Annual Report",export:"📥 Excel/CSV",settings:"⚙️ Settings",income:"➕ Add Income",incomeCat:"Income Category",incomeSource:"Extra Income Source",incomeNote:"Description",incomeAmount:"Amount (৳)",sourcePH:"e.g. Service, Product Sale, Gift, Item Sale",notePH:"e.g. Salary",sourceNote:"Changing the language will not delete or change your financial data.",date:"Date",profile:"👤 Profile Picture",removePic:"Remove Picture",notifications:"🔔 Notifications",sound:"Notification Sound",display:"Show on Display",notificationNote:"A warning notification will appear when spending gets too high.",incomeTypes:{basic_salary:"Basic Salary",overtime:"Overtime Pay",extra_income:"Extra Income",other_income:"Other Income"}}
+};
+
+function toggleSettings(){document.getElementById("settings").classList.toggle("hidden")}
+function changeLanguage(lang){localStorage.setItem("moneyAppLanguage",lang);applyLanguage(lang)}
+function applyLanguage(lang){
+ const t=translations[lang]||translations.bn;
+ document.documentElement.lang=lang;
+ document.title=t.title;
+ document.querySelector("header h1").textContent=t.title;
+ document.querySelector('button[onclick="setNow()"]').textContent=t.thisMonth;
+ reportBtn.textContent=t.annual; exportBtn.textContent=t.export;
+ document.querySelector('button[onclick="toggleSettings()"]').textContent=t.settings;
+ incomeTitle.textContent=t.income;
+ incomeCatLabel.childNodes[0].nodeValue=t.incomeCat;
+ incomeSourceLabel.childNodes[0].nodeValue=t.incomeSource;
+ incomeNoteLabel.childNodes[0].nodeValue=t.incomeNote;
+ incomeAmountLabel.childNodes[0].nodeValue=t.incomeAmount;
+ languageLabel.childNodes[0].nodeValue="Language";
+ languageNote.textContent=t.sourceNote;
+ profileTitle.textContent=t.profile; removePicBtn.textContent=t.removePic; notificationTitle.textContent=t.notifications; soundLabel.textContent=t.sound; displayLabel.textContent=t.display; notificationNote.textContent=t.notificationNote;
+ incomeSource.placeholder=t.sourcePH; inNote.placeholder=t.notePH;
+ [...incomeCategory.options].forEach(o=>o.textContent=t.incomeTypes[o.value]);
+ languageSelect.value=lang;
+ render();
+}
+
+incomeCategory.onchange=()=>{incomeSource.disabled=incomeCategory.value!=="extra_income";if(incomeSource.disabled)incomeSource.value=""};
+const savedLang=localStorage.getItem("moneyAppLanguage")||"bn";
+applyLanguage(savedLang);
+
+const settingsData=JSON.parse(localStorage.getItem("moneyAppSettings")||'{}');
+const soundToggle=document.getElementById("soundToggle"),displayToggle=document.getElementById("displayToggle"),profilePreview=document.getElementById("profilePreview");
+soundToggle.checked=!!settingsData.sound; displayToggle.checked=settingsData.display!==false;
+function saveSettings(){localStorage.setItem("moneyAppSettings",JSON.stringify(settingsData))}
+function refreshProfile(){profilePreview.src=settingsData.profilePic||"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='100%25' height='100%25' fill='%23eef2f6'/%3E%3Ccircle cx='32' cy='24' r='12' fill='%2394a3b8'/%3E%3Cpath d='M10 60c3-16 12-22 22-22s19 6 22 22' fill='%2394a3b8'/%3E%3C/svg%3E"}
+refreshProfile();
+profilePic.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{settingsData.profilePic=r.result;saveSettings();refreshProfile()};r.readAsDataURL(f)};
+function removeProfilePic(){delete settingsData.profilePic;saveSettings();refreshProfile();profilePic.value=""}
+soundToggle.onchange=()=>{settingsData.sound=soundToggle.checked;saveSettings()};displayToggle.onchange=()=>{settingsData.display=displayToggle.checked;saveSettings()};
+function currentLang(){return localStorage.getItem("moneyAppLanguage")||"bn"}
+function beep(){if(!settingsData.sound)return;try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.frequency.value=880;g.gain.value=.08;o.connect(g);g.connect(c.destination);o.start();setTimeout(()=>{o.stop();c.close()},180)}catch(e){}}
+let toastTimer;
+function showToast(msg){if(!settingsData.display)return;toast.textContent=msg;toast.classList.remove("hidden");clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.add("hidden"),5000);beep()}
+let warningKey="";
+function expenseWarning(category,used,budget){const lang=currentLang();const msg=lang==='bn'?`⚠️ ${category} খরচ অনেক বেশি হয়ে যাচ্ছে। এখন পর্যন্ত ${money(used)} খরচ হয়েছে, বাজেট ${money(budget)}।`:`⚠️ ${category} expense is getting too high. Spent ${money(used)} so far, budget is ${money(budget)}.`;showToast(msg)}
+function checkExpenseWarning(){let ts=monthTx(),byCat={};cats.forEach(c=>byCat[c]=ts.filter(t=>t.type==='expense'&&t.category===c).reduce((s,t)=>s+t.amount,0));let [y,m]=currentYM(),b=data.budgets[`${y}-${m}`]||{};Object.entries(b).forEach(([c,v])=>{let u=byCat[c]||0,key=`${y}-${m}-${c}-${Math.floor(u/v*10)}`;if(v>0&&u>=v*.8&&warningKey!==key){warningKey=key;expenseWarning(c,u,v)}})}
+const oldRender=render;render=function(){oldRender();checkExpenseWarning()};
+
+render();
+</script>
+</body>
+</html>
